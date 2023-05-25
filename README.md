@@ -1,4 +1,6 @@
 # m2mlapp
+[![View m2mlapp on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://www.mathworks.com/matlabcentral/fileexchange/130069-m2mlapp)
+
 Conversion from .M to .MLAPP (Matlab files)
 
 M2MLAPP provides the conversion from .M to .MLAPP, enabling GitHub text line based control, and allowing the reconstruction of apps whose .MLAPP files are damaged.
