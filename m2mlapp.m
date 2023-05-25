@@ -126,7 +126,7 @@ function mlappFullPath = m2mlapp(mFileFullPath, varargin)
         % Open app
         if p.Results.openApp
             appDesignEnvironment = appdesigner.internal.application.getAppDesignEnvironment();
-            appDesignEnvironment.openApp(mlappFullPath)
+            appDesignEnvironment.openApp(mlappFullPath);
         end
 
     catch ME
