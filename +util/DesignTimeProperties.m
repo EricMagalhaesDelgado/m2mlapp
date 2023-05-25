@@ -18,7 +18,11 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
         end
         
         tempFilePath = fullfile(mPath, [tempClass '.m']);
-        writecell({tempCode}, tempFilePath, 'FileType', 'text', 'QuoteStrings', 'none')
+
+        fileID = fopen(tempFilePath, "w");
+        fprintf(fileID, '%c', tempCode);
+        fclose(fileID);
+        
         app = eval(tempClass);
         drawnow
 

@@ -1,6 +1,6 @@
 function treeTable = treeCodeGeneration(matlabCode)
 
-    parser     = appdesigner.internal.codegeneration.MTreeCodeParser();
+    parser     = util.MTreeCodeParser();
     treeStruct = parser.parseWithMTree(matlabCode);
     
     if numel(treeStruct) < 3
