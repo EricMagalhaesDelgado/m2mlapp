@@ -13,7 +13,7 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
 
     % Simulate the app creation, avoiding its startup function.
     try
-        if ~contains(path, mPath)
+        if ~util.isOnMATLABPath(mPath)
             addpath(mPath)
         end
         
