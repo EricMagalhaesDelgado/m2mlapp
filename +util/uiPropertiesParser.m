@@ -8,6 +8,7 @@ function uiProperties = uiPropertiesParser(matlabCode, treeCode)
     % (a) Parents above children; and
     % (b) Younger siblings above older ones.
     blockCode1 = splitCode(treeCode.Line(1)+2:treeCode.EndLine(1));
+    blockCode1 = regexprep(blockCode1, '%.*$', '');
     propNames  = struct2table(regexp(strjoin(blockCode1, '\n'), '(?<name>\w+)\s+(?<class>[\w.]+)', 'names'));
     propNames  = addvars(propNames, (1:height(propNames))', 'Before', 1, 'NewVariableNames', 'id');
     
@@ -89,6 +90,6 @@ function uiProperties = uiPropertiesParser(matlabCode, treeCode)
 
 
     % Join info in a single table...
-    uiProperties = join(propNames, propCode);
+    uiProperties = join(propCode, propNames, 'Keys', 'name');
 
 end
