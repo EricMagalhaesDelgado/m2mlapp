@@ -221,25 +221,34 @@ classdef MTreeCodeParser
                 item = {};
                 name =  current.Left;
                 value = current.Right;
-                if(strcmp(name.kind, 'PROPTYPEDECL'))
-                    item.Property.Name = string(name.VarName);
-					propertyTypes = strings(name.VarType);
-					if isempty(propertyTypes)
-						item.Property.Type = "";
-					else
-						item.Property.Type = propertyTypes{1};
-					end
-				elseif(strcmp(name.kind, 'ATBASE'))
-                    item.Property.Name = string(name.Left);
-                    name = name.Left;
-                else
-                    item.Property.Name = name.string;
+
+                try
+                    if(strcmp(name.kind, 'PROPTYPEDECL'))
+                        item.Property.Name = string(name.VarName);
+					    propertyTypes = strings(name.VarType);
+					    if isempty(propertyTypes)
+						    item.Property.Type = "";
+					    else
+						    item.Property.Type = propertyTypes{1};
+					    end
+				    elseif(strcmp(name.kind, 'ATBASE'))
+                        item.Property.Name = string(name.Left);
+                        name = name.Left;
+                    else
+                        item.Property.Name = name.string;
+                    end
+                catch ME
+                    current = current.Next;
+                    continue
                 end
+
                 item.Property.Position = [name.lineno - 1, name.charno];
+                
                 if(~value.isempty)
                     item.Value.Name = value.tree2str;
                     item.Value.Position = [value.lineno - 1, value.charno];
                 end
+
                 items{end+1} = item;
                 current = current.Next;
             end

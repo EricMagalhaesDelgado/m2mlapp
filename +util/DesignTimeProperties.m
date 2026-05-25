@@ -10,6 +10,8 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
                                      '% runStartupFcn(app',                                   ...
                                      sprintf('%% app.%s.Visible', uiProperties.name{1})});
 
+    matlabReleaseYear = str2double(regexp(matlabRelease.Release, '\d+', 'match', 'once'));
+
 
     % Simulate the app creation, avoiding its startup function.
     try
@@ -72,7 +74,7 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
                 if ~isempty(regexp(uiProperties.CodeContent{ii}{kk}, '^app[.][\w_.]+\s*=\s*fullfile(pathToMLAPP,.*', 'once'))
                     imgPieces = strtrim(strsplit(char(extractBetween(uiProperties.CodeContent{ii}{kk}, 'fullfile(pathToMLAPP,', ');')), ','));
 
-                    if numel(imgPieces) == 1
+                    if isscalar(imgPieces)
                         imgPieces = char(replace(imgPieces, '''', ''));
                         imgRelativePath = imgPieces;
                         if isfile(fullfile(mPath, imgPieces))
@@ -117,26 +119,29 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
         % uiFigure stacking order, ennsuring that the visual stacking of UI 
         % components respects what is established in the properties section 
         % of the components.
-        idx3 = find(uiProperties.stackChildrens > 1)';
-        for ll = idx3
-            objParent = app.(uiProperties.name{ll});
-            
-            % Desirable stacking order
-            desirableOrder = uiProperties.name(strcmp(uiProperties.parent, uiProperties.name{ll}));
-
-            % Situation table
-            stackTable = table('Size', [0, 3],                                ...
-                               'VariableTypes', {'cell', 'double', 'double'}, ...
-                               'VariableNames', {'name', 'actualOrder', 'desirableOrder'});
-
-            for mm = 1:numel(objParent.Children)
-                childrenName = objParent.Children(mm).DesignTimeProperties.CodeName;
-                stackTable(end+1,:) = {childrenName, mm, find(strcmp(desirableOrder, childrenName), 1)};
-            end
-                        
-            if ~isequal(desirableOrder, stackTable.name)
-                stackTable = sortrows(stackTable, 'desirableOrder');
-                objParent.Children = objParent.Children(stackTable.actualOrder);
+        if matlabReleaseYear <= 2024
+            idx3 = find(uiProperties.stackChildrens > 1)';
+            for ll = idx3
+                objParent = app.(uiProperties.name{ll});
+                
+                
+                % Desirable stacking order
+                desirableOrder = sortrows(uiProperties(strcmp(uiProperties.parent, uiProperties.name{ll}), {'name', 'id'}), 'id').name;
+    
+                % Situation table
+                stackTable = table('Size', [0, 3],                                ...
+                                   'VariableTypes', {'cell', 'double', 'double'}, ...
+                                   'VariableNames', {'name', 'actualOrder', 'desirableOrder'});
+    
+                for mm = 1:numel(objParent.Children)
+                    childrenName = objParent.Children(mm).DesignTimeProperties.CodeName;
+                    stackTable(end+1,:) = {childrenName, mm, find(strcmp(desirableOrder, childrenName), 1)};
+                end
+                            
+                if ~isequal(desirableOrder, stackTable.name)
+                    stackTable = sortrows(stackTable, 'desirableOrder');
+                    objParent.Children = objParent.Children(stackTable.actualOrder);
+                end
             end
         end
 
