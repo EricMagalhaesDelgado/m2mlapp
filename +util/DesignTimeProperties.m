@@ -1,8 +1,9 @@
-function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTimeProperties(mPath, ClassName, matlabCode, uiProperties, ScreenshotFlag)
+function [uiFigure, customComponents, tempFilePath, screenshotPath, imageRelativePaths] = DesignTimeProperties(mPath, className, matlabCode, uiProperties, screenshotFlag)
 
-    tempClass = ['m2mlapp_' datestr(now, 'yyyymmddTHHMMSS')];
-    tempCode  = replace(matlabCode, {sprintf('classdef %s < matlab.apps.AppBase', ClassName), ...
-                                     sprintf('function app = %s', ClassName),                 ...
+    % Unique per call (millisecond + random suffix), because MATLAB caches class definitions.
+    tempClass = sprintf('m2mlapp_%s_%04d', char(datetime('now', 'Format', 'yyyyMMdd''T''HHmmssSSS')), randi(9999));
+    tempCode  = replace(matlabCode, {sprintf('classdef %s < matlab.apps.AppBase', className), ...
+                                     sprintf('function app = %s', className),                 ...
                                      'runStartupFcn(app',                                     ...
                                      sprintf('app.%s.Visible', uiProperties.name{1})},        ...
                                     {sprintf('classdef %s < matlab.apps.AppBase', tempClass), ...
@@ -10,30 +11,50 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
                                      '% runStartupFcn(app',                                   ...
                                      sprintf('%% app.%s.Visible', uiProperties.name{1})});
 
-    matlabReleaseYear = str2double(regexp(matlabRelease.Release, '\d+', 'match', 'once'));
 
 
     % Simulate the app creation, avoiding its startup function.
     try
-        if ~util.isOnMATLABPath(mPath)
-            addpath(mPath)
+        [rootPath, packagePrefix] = util.packageRoot(mPath);
+        if ~util.isOnMATLABPath(rootPath)
+            addpath(rootPath)
         end
         
         tempFilePath = fullfile(mPath, [tempClass '.m']);
 
         fileID = fopen(tempFilePath, "w");
-        fprintf(fileID, '%c', tempCode);
+        fwrite(fileID, unicode2native(tempCode, 'UTF-8'), 'uint8');
         fclose(fileID);
         
-        app = eval(tempClass);
+        % MATLAB caches folder contents (and packages), so the new file is only found after a rehash.
+        numAttempts = 10;
+        for attempt = 1:numAttempts
+            if isfile(tempFilePath)
+                rehash
+                drawnow
+                try
+                    app = eval([packagePrefix tempClass]);
+                    break
+                catch ME
+                    if attempt == numAttempts
+                        rethrow(ME)
+                    end
+                end
+            elseif attempt == numAttempts
+                error('m2mlapp:TempClassNotFound', 'The temporary file "%s" was not created.', tempFilePath)
+            end
+            pause(.100)
+        end
         drawnow
 
 
         % "DesignTimeProperties" property creation, and custom components
         % mapping.
+        warnState = warning('off', 'MATLAB:structOnObject');
         matlabComponentsList = struct(appdesigner.internal.application.getComponentAdapterMap()).serialization.keys';
+        warning(warnState)
         customComponents = {};
-        
+        imageRelativePaths = {};
         uiProperties.CodeContent{1}(end) = []; % app.UIFigure.Visible = 'on';
 
         for ii = 1:height(uiProperties)
@@ -95,6 +116,10 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
 
 
             % "DesignTimeProperties" property
+            if ~isempty(imgRelativePath) && ~ismember(imgRelativePath, imageRelativePaths)
+                imageRelativePaths{end+1} = imgRelativePath;
+            end
+
             addprop(objHandle, 'DesignTimeProperties');
             objHandle.DesignTimeProperties = struct('CodeName', uiProperties.name{ii},             ...
                                                     'GroupId', '',                                 ...
@@ -105,7 +130,7 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
 
         % screenshot of the app (this part is not essential)
         screenshotPath = '';
-        if ScreenshotFlag
+        if screenshotFlag
             try
                 screenshotPath = [tempname, '.png'];
                 exportapp(uiFigure, screenshotPath)
@@ -116,36 +141,40 @@ function [uiFigure, customComponents, tempFilePath, screenshotPath] = DesignTime
         end
 
 
-        % uiFigure stacking order, ennsuring that the visual stacking of UI 
-        % components respects what is established in the properties section 
-        % of the components.
-        if matlabReleaseYear <= 2024
-            idx3 = find(uiProperties.stackChildrens > 1)';
-            for ll = idx3
-                objParent = app.(uiProperties.name{ll});
-                
-                
-                % Desirable stacking order
-                desirableOrder = sortrows(uiProperties(strcmp(uiProperties.parent, uiProperties.name{ll}), {'name', 'id'}), 'id').name;
-    
-                % Situation table
-                stackTable = table('Size', [0, 3],                                ...
-                                   'VariableTypes', {'cell', 'double', 'double'}, ...
-                                   'VariableNames', {'name', 'actualOrder', 'desirableOrder'});
-    
-                for mm = 1:numel(objParent.Children)
-                    childrenName = objParent.Children(mm).DesignTimeProperties.CodeName;
-                    stackTable(end+1,:) = {childrenName, mm, find(strcmp(desirableOrder, childrenName), 1)};
-                end
-                            
-                if ~isequal(desirableOrder, stackTable.name)
-                    stackTable = sortrows(stackTable, 'desirableOrder');
-                    objParent.Children = objParent.Children(stackTable.actualOrder);
-                end
+        % Children order as saved by AppDesigner: newest first (reverse of the creation
+        % order in createComponents), except tabs and tree nodes, which keep the creation order.
+        for ll = find(uiProperties.stackChildrens > 1)'
+            objParent = app.(uiProperties.name{ll});
+
+            desirableOrder = uiProperties.name(strcmp(uiProperties.parent, uiProperties.name{ll}));
+            if ~ismember(class(objParent), {'matlab.ui.container.TabGroup', 'matlab.ui.container.Tree', 'matlab.ui.container.CheckBoxTree', 'matlab.ui.container.TreeNode'})
+                desirableOrder = flipud(desirableOrder);
+            end
+
+            stackTable = table('Size', [0, 3],                                ...
+                               'VariableTypes', {'cell', 'double', 'double'}, ...
+                               'VariableNames', {'name', 'actualOrder', 'desirableOrder'});
+
+            for mm = 1:numel(objParent.Children)
+                childrenName = objParent.Children(mm).DesignTimeProperties.CodeName;
+                stackTable(end+1,:) = {childrenName, mm, find(strcmp(desirableOrder, childrenName), 1)};
+            end
+
+            if ~isequal(desirableOrder, stackTable.name)
+                stackTable = sortrows(stackTable, 'desirableOrder');
+                objParent.Children = objParent.Children(stackTable.actualOrder);
             end
         end
 
     catch ME
+        if exist('app', 'var') && isvalid(app)
+            delete(app)
+        end
+
+        if exist('tempFilePath', 'var') && isfile(tempFilePath)
+            delete(tempFilePath)
+        end
+
         throwAsCaller(ME)
     end
 

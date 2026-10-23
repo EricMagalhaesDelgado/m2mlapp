@@ -45,3 +45,10 @@ Example 2 - Rebuilding a broken .MLAPP file (.MLAPP >> .M >> .MLAPP)
     
     movefile(mlappFileFullPath, fullfile(mPath, [mFilename '_old.mlapp']))
     m2mlapp(mFileFullPath)
+
+Example 3 - Automatic conversion (.M >> .MLAPP) on every change of the .M file
+
+    w = m2mlappWatch('C:\InovaFiscaliza\monitorRNI');
+    m2mlappWatch('stop')
+    
+`m2mlappWatch` polls the folder (options: `Recursive`, `Period`, `Screenshot`, `Block`), and calls `m2mlapp` (with `OpenApp=false`) for each changed `.m` whose class inherits from `matlab.apps.AppBase`. Metadata (Name, Author, Version, Summary, Description) of an existing `.mlapp` is preserved. Keep the MATLAB session running while editing the `.m`, since each conversion takes a few seconds.

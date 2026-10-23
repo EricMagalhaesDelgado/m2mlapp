@@ -9,14 +9,14 @@ function uiProperties = uiPropertiesParser(matlabCode, treeCode)
     % (b) Younger siblings above older ones.
     blockCode1 = splitCode(treeCode.Line(1)+2:treeCode.EndLine(1));
     blockCode1 = regexprep(blockCode1, '%.*$', '');
-    propNames  = struct2table(regexp(strjoin(blockCode1, '\n'), '(?<name>\w+)\s+(?<class>[\w.]+)', 'names'));
+    propNames  = names2table(regexp(strjoin(blockCode1, '\n'), '(?<name>\w+)\s+(?<class>[\w.]+)', 'names'));
     propNames  = addvars(propNames, (1:height(propNames))', 'Before', 1, 'NewVariableNames', 'id');
     
 
     % Parsing the second last block (createComponents function)
     blockCode2 = util.removeNonExecutingCode(strjoin(splitCode(treeCode.Items{end-1}{1}.Position(1)+2:treeCode.Items{end-1}{1}.EndPosition(1)), '\n'));
     
-    propCode   = struct2table(regexp(blockCode2, 'app[.](?<name>\w+)\s*=\s*(?<fcn>[\w.]+)', 'names'));
+    propCode   = names2table(regexp(blockCode2, 'app[.](?<name>\w+)\s*=\s*(?<fcn>[\w.]+)', 'names'));
     nProperties = height(propCode);
     
     blockCode2 = splitlines(blockCode2);
@@ -92,4 +92,11 @@ function uiProperties = uiPropertiesParser(matlabCode, treeCode)
     % Join info in a single table...
     uiProperties = join(propCode, propNames, 'Keys', 'name');
 
+end
+
+%-----------------------------------------------------------------%
+function t = names2table(s)
+    % A single match makes regexp return a scalar struct of char, instead of cellstr.
+    t = struct2table(s, 'AsArray', true);
+    t = convertvars(t, @ischar, @cellstr);
 end

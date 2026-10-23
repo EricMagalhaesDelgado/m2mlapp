@@ -5,7 +5,7 @@ function Status = isOnMATLABPath(fileFolder)
     end
 
     fileFolder = char(lower(fileFolder));
-    MATLABPath = strsplit(lower(path), ';');
+    MATLABPath = strsplit(lower(path), pathsep);
 
     if ismember(fileFolder, MATLABPath)
         Status = true;
